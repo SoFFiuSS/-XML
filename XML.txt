@@ -1,0 +1,90 @@
+using System.Globalization;
+using System.Xml.Linq;
+
+namespace XmlCurrencyInteractive
+{
+    class CurrencyData
+    {
+        public string Code;
+        public double Rate;
+    }
+
+    class Program
+    {
+        static void Main()
+        {
+            Console.WriteLine("Загрузка курса НБУ...\n");
+
+            var client = new HttpClient();
+            string url = "https://bank.gov.ua/NBUStatService/v1/statdirectory/exchange";
+            string xmlStr = client.GetStringAsync(url).Result;
+            XDocument doc = XDocument.Parse(xmlStr);
+
+            List<CurrencyData> tempList = new List<CurrencyData>();
+
+            foreach (XElement element in doc.Descendants("currency"))
+            {
+                string cc = element.Element("cc").Value;
+                string rateStr = element.Element("rate").Value;
+                double rate = double.Parse(rateStr, CultureInfo.InvariantCulture);
+
+                CurrencyData currency = new CurrencyData();
+                currency.Code = cc;
+                currency.Rate = rate;
+                tempList.Add(currency);
+            }
+
+            CurrencyData uah = new CurrencyData();
+            uah.Code = "UAH";
+            uah.Rate = 1.0;
+            tempList.Add(uah);
+
+            CurrencyData[] currenciesArray = tempList.ToArray();
+
+            while (true)
+            {
+                Console.Write("Введите код валюты (например, USD, EUR, UAH) или 0 для выхода: ");
+                string fromCode = Console.ReadLine().ToUpper(); 
+
+                if (fromCode == "0")
+                {
+                    Console.WriteLine("Работу завершено.");
+                    break;
+                }
+
+                Console.Write("Введите код валюты, которую хотите получить (например, UAH, EUR): ");
+                string toCode = Console.ReadLine().ToUpper();
+
+                Console.Write("Введите сумму: ");
+                double amount = Convert.ToDouble(Console.ReadLine());
+
+                double fromRate = GetRate(currenciesArray, fromCode);
+                double toRate = GetRate(currenciesArray, toCode);
+
+                if (fromRate == 0 || toRate == 0)
+                {
+                    Console.WriteLine("Ошибка: Одна из валют не найдена. Проверьте правильность кода (например, USD).\n");
+                    continue; 
+                }
+
+                double result = (amount * fromRate) / toRate;
+
+                Console.WriteLine($"\nРезультат: {Math.Round(result, 2)} {toCode}\n");
+                Console.WriteLine(new string('-', 40));
+            }
+        }
+
+        static double GetRate(CurrencyData[] array, string targetCode)
+        {
+            for (int i = 0; i < array.Length; i++)
+            {
+                if (array[i].Code == targetCode)
+                {
+                    return array[i].Rate; 
+                }
+            }
+            return 0; 
+        }
+    }
+}
+
